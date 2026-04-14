@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lab Management System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js'></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .hidden { display: none !important; }
+        .card { border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 10px; margin-top: 20px; }
+        .custom-badge { display: inline-block; background: #e9ecef; border-radius: 4px; padding: 4px 8px; font-size: 12px; margin: 2px; border: 1px solid #dee2e6; }
+        .dual-listbox .form-select { height: 200px; }
+        .fc-event { cursor: pointer; } 
+        .table th { background-color: #f8f9fa; }
+    </style>
+</head>
+<body>
+
+    <div class="container py-5">
+        <div id="authContainer" class="row justify-content-center">
+            <div class="col-md-6 col-lg-5">
+                <div class="card p-4">
+                    <div class="text-center mb-4"><h2 class="fw-bold text-primary">Lab Management</h2></div>
+                    <div id="loginSection">
+                        <input type="text" id="username" class="form-control form-control-lg mb-3" placeholder="Email (@tu-ilmenau.de)">
+                        <input type="password" id="password" class="form-control form-control-lg mb-3" placeholder="Password">
+                        <button class="btn btn-primary btn-lg w-100 mb-3" onclick="login()">Login</button>
+                        <div class="d-flex justify-content-between"><small><a href="#" onclick="toggleAuth('register')">Register here</a></small><small><a href="#" onclick="toggleAuth('forgot')">Forgot Password?</a></small></div>
+                    </div>
+                    <div id="registerSection" class="hidden">
+                        <p class="text-danger small text-center mb-3">*Must use a @tu-ilmenau.de email</p>
+                        <input type="text" id="regUsername" class="form-control mb-3" placeholder="Email (@tu-ilmenau.de)">
+                        <input type="password" id="regPassword" class="form-control mb-3" placeholder="Choose Password">
+                        <select id="regRole" class="form-select mb-3">
+                            <option value="student">Student</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="professor">Professor</option>
+                        </select>
+                        <button class="btn btn-success w-100 mb-3" onclick="registerAccount()">Register</button>
+                        <div class="text-center"><small><a href="#" onclick="toggleAuth('login')">Login here</a></small></div>
+                    </div>
+                    <div id="forgotSection" class="hidden">
+                        <p class="text-muted small text-center mb-3">Enter your email to receive a password reset link.</p>
+                        <input type="text" id="forgotEmail" class="form-control mb-3" placeholder="Email (@tu-ilmenau.de)">
+                        <button class="btn btn-info w-100 mb-3" onclick="requestPasswordReset()">Send Reset Link</button>
+                        <div class="text-center"><small><a href="#" onclick="toggleAuth('login')">Back to Login</a></small></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="resetContainer" class="row justify-content-center hidden">
+            <div class="col-md-6 col-lg-5">
+                <div class="card p-4">
+                    <div class="text-center mb-4"><h2 class="fw-bold text-primary">Reset Password</h2></div>
+                    <div id="resetSection">
+                        <input type="hidden" id="resetToken">
+                        <input type="password" id="resetPassword" class="form-control mb-3" placeholder="New Password">
+                        <input type="password" id="resetPasswordConfirm" class="form-control mb-3" placeholder="Confirm New Password">
+                        <button class="btn btn-success w-100 mb-3" onclick="processPasswordReset()">Reset Password</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="appSection" class="hidden">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm">
+                <h3 class="m-0 fw-bold text-primary mb-2 mb-md-0">Lab Dashboard</h3>
+                <div class="d-flex align-items-center">
+                    <span id="userDisplay" class="badge bg-secondary me-3 fs-6"></span>
+                    <button class="btn btn-outline-danger btn-sm" onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <ul class="nav nav-pills flex-column flex-sm-row mb-4 gap-2">
+                <li class="nav-item"><button class="nav-link w-100 text-bg-primary text-white" id="tab-inventory" onclick="switchTab('inventory')">Inventory</button></li>
+                <li class="nav-item"><button class="nav-link w-100 text-bg-success text-white" id="tab-booking" onclick="switchTab('booking'); fetchMetadata();">Book Timeslot</button></li>
+                <li class="nav-item"><button class="nav-link w-100 text-bg-info text-white hidden" id="myBookingsTabBtn" onclick="switchTab('myBookings')">My Bookings</button></li>
+                <li class="nav-item"><button class="nav-link w-100 text-white hidden" style="background-color: #6f42c1;" id="calendarTabBtn" onclick="switchTab('calendar')">Global Calendar</button></li>
+                <li class="nav-item"><button class="nav-link w-100 text-bg-danger hidden" id="adminTabBtn" onclick="switchTab('admin')">Admin Panel</button></li>
+            </ul>
+
+            <div id="inventoryPanel" class="card card-body app-panel">
+                <h4 class="card-title mb-4">Inventory List</h4>
+                <select id="invType" class="form-select dynamic-type-dropdown w-25 mb-3" onchange="fetchInventory()"></select>
+                <div class="table-responsive"><table class="table table-hover table-bordered align-middle"><thead><tr><th>ID</th><th>Name & Details</th><th>Serial No</th><th>Status</th></tr></thead><tbody id="inventoryTable"></tbody></table></div>
+            </div>
+
+            <div id="bookingPanel" class="card card-body app-panel hidden">
+                <h4 class="card-title mb-4">Search & Book Timeslot</h4>
+                
+                <div class="bg-light p-3 rounded border mb-4">
+                    <h6 class="fw-bold mb-3">1. Select Study & Booking Target</h6>
+                    <div class="row g-3">
+                        <div class="col-md-12"><select id="studySelect" class="form-select" required></select></div>
+                    </div>
+                </div>
+                
+                <div id="bookingScopeContainer" class="bg-light p-3 rounded border mb-4 hidden">
+                    <h6 class="fw-bold mb-3">1.1. Select Booking Scope for Study</h6>
+                    <div class="row g-3">
+                        <div class="col-md-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="bookingScopeRadio" id="scopeEntireLab" value="entire_lab" checked onchange="toggleBookingScopeWorkplaces()">
+                                <label class="form-check-label" for="scopeEntireLab">Book Entire Lab</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="bookingScopeRadio" id="scopeAllAssignedWorkplaces" value="all_assigned_workplaces" checked onchange="toggleBookingScopeWorkplaces()">
+                                <label class="form-check-label" for="scopeAllAssignedWorkplaces">Book All Assigned Workplaces</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="bookingScopeRadio" id="scopeIndividualWorkplaces" value="individual_workplaces" onchange="toggleBookingScopeWorkplaces()">
+                                <label class="form-check-label" for="scopeIndividualWorkplaces">Book Individual Workplaces</label>
+                            </div>
+                        </div>
+                        <div class="col-md-12 hidden" id="individualWorkplacesDualListboxContainer"></div>
+                    </div>
+                </div>
+
+                <div class="bg-light p-3 rounded border mb-4">
+                    <h6 class="fw-bold mb-3">2. Search Equipment (Optional) & Timeslot</h6>
+                    <div class="row g-3 align-items-end">
+                        <div class="col-md-3" id="equipmentTypeContainer">
+                            <label class="form-label small">Add. Equipment (Optional)</label>
+                            <select id="bookType" class="form-select dynamic-type-dropdown"><option value="">-- Workplace Only --</option></select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">Start Time</label>
+                            <div class="row g-2"><div class="col-6"><input type="text" id="startDate" class="form-control flatpickr-date bg-white" placeholder="DD/MM/YYYY" required></div><div class="col-6"><input type="text" id="startTime" class="form-control flatpickr-time bg-white" placeholder="HH:MM" required></div></div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small">End Time</label>
+                            <div class="row g-2"><div class="col-6"><input type="text" id="endDate" class="form-control flatpickr-date bg-white" placeholder="DD/MM/YYYY" required></div><div class="col-6"><input type="text" id="endTime" class="form-control flatpickr-time bg-white" placeholder="HH:MM" required></div></div>
+                        </div>
+                        <div class="col-md-1 text-md-end mt-3 mt-md-0"><button class="btn btn-primary w-100" onclick="searchAvailable()">Search</button></div>
+                    </div>
+                </div>
+
+                <div id="resultsSection" class="hidden mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 bg-white p-3 rounded shadow-sm border">
+                        <input type="text" id="equipmentFilter" class="form-control w-50" placeholder="🔍 Quick Search..." onkeyup="filterEquipment()">
+                        <button class="btn btn-success btn-lg shadow-sm" onclick="processBooking()">Submit Booking Request</button>
+                    </div>
+                    <div class="table-responsive border rounded" style="max-height: 400px; overflow-y: auto;">
+                        <table class="table table-hover table-bordered align-middle mb-0"><thead class="table-light position-sticky top-0"><tr><th>Select</th><th>ID</th><th>Name & Details</th><th>Serial No</th></tr></thead><tbody id="availableItemsTable"></tbody></table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="myBookingsPanel" class="card card-body app-panel hidden">
+                <div class="d-flex justify-content-between align-items-center mb-4"><h4 class="card-title m-0" id="bookingsTitle">My Bookings</h4><button class="btn btn-outline-secondary btn-sm" onclick="fetchReservations()">Refresh</button></div>
+                <div class="table-responsive"><table class="table table-hover table-bordered align-middle"><thead><tr><th>User</th><th>Study</th><th>Locations</th><th>Items</th><th>Timeframe</th><th>Status</th><th>Action</th></tr></thead><tbody id="myBookingsTable"></tbody></table></div>
+            </div>
+
+            <div id="calendarPanel" class="card card-body app-panel hidden">
+                <h4 class="card-title">Global Lab Calendar</h4><div id="calendar" class="border rounded p-2 bg-white"></div>
+            </div>
+
+            <div id="adminPanel" class="card card-body app-panel hidden">
+                <h4 class="card-title mb-4">Admin Dashboard</h4>
+                
+                <div class="d-flex flex-wrap gap-2 mb-4 pb-3 border-bottom">
+                    <button class="btn btn-outline-primary btn-sm" onclick="showAdminTab('pendingBookings')">Pending Approvals</button>
+                    <button class="btn btn-outline-primary btn-sm btn-admin-only" onclick="showAdminTab('pendingUsers')">Pending Accounts</button>
+                    <button class="btn btn-outline-primary btn-sm btn-admin-only" onclick="showAdminTab('manageUsers')">Manage Users</button>
+                    <button class="btn btn-outline-dark btn-sm" onclick="showAdminTab('manageStudies')">Manage Studies</button>
+                    <button class="btn btn-outline-dark btn-sm" onclick="showAdminTab('manageWorkplaces')">Manage Labs & Workplaces</button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="showAdminTab('manageEquipment')">Manage Equipment</button>
+                </div>
+
+                <div id="pendingUsersSection" class="admin-section hidden"><h5>Pending Accounts</h5><table class="table table-bordered"><thead><tr><th>Email</th><th>Role</th><th>Action</th></tr></thead><tbody id="pendingUsersTable"></tbody></table></div>
+                <div id="manageUsersSection" class="admin-section hidden"><h5>Registered Accounts</h5><table class="table table-bordered"><thead><tr><th>Email</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody id="allUsersTable"></tbody></table></div>
+                <div id="pendingBookingsSection" class="admin-section hidden"><h5>Pending Bookings</h5><table class="table table-bordered"><thead><tr><th>Student</th><th>Study</th><th>Target</th><th>Item</th><th>Dates</th><th>Action</th></tr></thead><tbody id="pendingBookingsTable"></tbody></table></div>
+                
+                <div id="manageStudiesSection" class="admin-section hidden">
+                    <h5>Manage Studies</h5>
+                    <div class="bg-light p-3 rounded border mb-4">
+                        <div class="row g-2 align-items-end">
+                            <div class="col-md-3"><label class="form-label small">Study Name</label><input type="text" id="newStudyName" class="form-control" placeholder="Study Name"></div>
+                            <div class="col-md-3"><label class="form-label small">Supervisor</label><select id="newStudySupervisor" class="form-select"></select></div>
+                            <div class="col-md-2"><label class="form-label small">Primary Lab</label><select id="newStudyPrimaryLab" class="form-select" onchange="filterWorkplacesForStudy('new')"></select></div>
+                            <div class="col-md-2">
+                                <label class="form-label small">Location Type</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" id="newStudyBooksEntireLab" onchange="toggleStudyWorkplaceSelection('new')">
+                                    <label class="form-check-label" for="newStudyBooksEntireLab">Entire Lab</label>
+                                </div>
+                            </div>
+                            <div class="col-md-2"><label class="form-label small">Timeframe</label><input type="text" id="newStudyStart" class="form-control flatpickr-date bg-white" placeholder="Start Date"><input type="text" id="newStudyEnd" class="form-control flatpickr-date bg-white mt-1" placeholder="End Date"></div>
+                        </div>
+                        <div class="row mt-3" id="newStudyWorkplaceDualListboxContainer">
+                            <div class="col-12">
+                                <label class="form-label small">Specific Workplaces (within selected Lab)</label>
+                                <div class="dual-listbox d-flex justify-content-between">
+                                    <div class="list-container w-45"><input type="text" class="form-control form-control-sm mb-2" id="newStudyWorkplacesFilter" onkeyup="filterDualList('newStudyWorkplacesFilter', 'newStudyAvailableWorkplaces')" placeholder="Filter available..."><select multiple class="form-select" id="newStudyAvailableWorkplaces" size="8"></select></div>
+                                    <div class="controls d-flex flex-column justify-content-center align-items-center px-2"><button type="button" class="btn btn-sm btn-outline-secondary mb-2" onclick="moveDualListItems('newStudyAvailableWorkplaces', 'newStudyAssignedWorkplaces')">&gt;</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveDualListItems('newStudyAssignedWorkplaces', 'newStudyAvailableWorkplaces')">&lt;</button></div>
+                                    <div class="list-container w-45"><p class="text-muted small mb-2 text-center">Assigned to Study</p><select multiple class="form-select" id="newStudyAssignedWorkplaces" size="8"></select></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3"><div class="col-12"><label class="form-label small">Dedicated Equipment (Optional)</label><div class="dual-listbox d-flex justify-content-between"><div class="list-container w-45"><input type="text" class="form-control form-control-sm mb-2" id="newStudyEqFilter" onkeyup="filterDualList('newStudyEqFilter', 'newStudyAvailableEq')" placeholder="Filter available..."><select multiple class="form-select" id="newStudyAvailableEq" size="8"></select></div><div class="controls d-flex flex-column justify-content-center align-items-center px-2"><button type="button" class="btn btn-sm btn-outline-secondary mb-2" onclick="moveDualListItems('newStudyAvailableEq', 'newStudyDedicatedEq')">&gt;</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveDualListItems('newStudyDedicatedEq', 'newStudyAvailableEq')">&lt;</button></div><div class="list-container w-45"><p class="text-muted small mb-2 text-center">Assigned to Study</p><select multiple class="form-select" id="newStudyDedicatedEq" size="8"></select></div></div></div></div>
+                        <div class="row mt-3"><div class="col-12"><button class="btn btn-success w-100" onclick="addStudy()">Create Study</button></div></div>
+                    </div>
+                    <table class="table table-bordered"><thead><tr><th>ID</th><th>Study Name</th><th>Supervisor</th><th>Location</th><th>Timeframe</th><th>Dedicated Equipment</th><th>Action</th></tr></thead><tbody id="studiesTable"></tbody></table>
+                </div>
+
+                <div id="manageWorkplacesSection" class="admin-section hidden">
+                    <h5 class="mb-3">Manage Labs & Workplaces</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Labs</h6>
+                            <div class="bg-light p-3 rounded border mb-3">
+                                <label class="fw-bold mb-2">Create New Lab:</label>
+                                <div class="d-flex gap-2">
+                                    <input type="text" id="newLabName" class="form-control" placeholder="e.g., EEG Main Lab">
+                                    <button class="btn btn-primary" onclick="addLab()">Create</button>
+                                </div>
+                            </div>
+                            <table class="table table-bordered"><thead><tr><th>Lab Name</th><th>Status</th><th>Action</th></tr></thead><tbody id="labsTable"></tbody></table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Workplaces</h6>
+                            <div class="bg-light p-3 rounded border mb-3">
+                                <label class="fw-bold mb-2">Add Workplace to a Lab:</label>
+                                <div class="d-flex gap-2">
+                                    <input type="text" id="newWorkplaceName" class="form-control" placeholder="Workplace Name">
+                                    <select id="newWorkplaceLab" class="form-select"></select>
+                                    <button class="btn btn-success" onclick="addWorkplace()">Create</button>
+                                </div>
+                            </div>
+                            <table class="table table-bordered align-middle">
+                                <thead><tr><th>Workplace Name</th><th>Parent Lab</th><th>Status</th><th>Action</th></tr></thead>
+                                <tbody id="workplacesTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="manageEquipmentSection" class="admin-section hidden">
+                    <h5 class="mb-3">Manage Inventory</h5>
+                    <div id="addCategoryDiv" class="bg-light p-3 rounded border mb-3 btn-admin-only"><label class="fw-bold mb-2">Create New Equipment Category:</label><div class="d-flex gap-2"><input type="text" id="newTypeName" class="form-control w-50" placeholder="e.g., Laptops"><button class="btn btn-success" onclick="addEquipmentType()">Add Category</button></div></div>
+                    
+                    <div class="bg-light p-3 rounded border mb-4 btn-admin-only">
+                        <label class="fw-bold mb-2">Add New Device:</label>
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-4"><select id="newEqType" class="form-select dynamic-type-dropdown"></select></div>
+                            <div class="col-md-4"><input type="text" id="newEqName" class="form-control" placeholder="Device Name"></div>
+                            <div class="col-md-4"><input type="text" id="newEqSerial" class="form-control" placeholder="Serial No."></div>
+                        </div>
+                        <div class="border-top pt-3 mt-2 mb-3">
+                            <p class="small text-muted mb-2"><strong>Optional Custom Attributes:</strong> Add specific columns like "OS", "Color", or "Location"</p>
+                            <div id="customAttributesContainer" class="mb-2"></div>
+                            <button type="button" class="btn btn-secondary btn-sm" onclick="addCustomFieldUI()">+ Add Custom Column</button>
+                        </div>
+                        <button class="btn btn-success w-100" onclick="addEquipment()">Submit New Device</button>
+                    </div>
+
+                    <select id="adminInvType" class="form-select dynamic-type-dropdown w-25 mb-3" onchange="fetchAdminEquipment()"></select>
+                    <table class="table table-bordered"><thead><tr><th>ID</th><th>Name</th><th>Serial No</th><th>Status</th><th>Action</th></tr></thead><tbody id="adminEqTable"></tbody></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approve User Modal -->
+    <div class="modal fade" id="approveUserModal" tabindex="-1" aria-labelledby="approveUserModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="approveUserModalLabel">Approve User</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p>Approving user: <strong id="approveUsername"></strong></p>
+            <div class="mb-3">
+              <label for="userRoleSelect" class="form-label">Assign Role:</label>
+              <select class="form-select" id="userRoleSelect">
+                <option value="student">Student</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="professor">Professor</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <input type="hidden" id="approveUserId">
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-success" onclick="confirmApproveUser()">Confirm Approval</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edit Study Modal -->
+    <div class="modal fade" id="editStudyModal" tabindex="-1" aria-labelledby="editStudyModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" id="editStudyModalLabel">Edit Study</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <input type="hidden" id="editStudyId">
+                    <div class="row g-3">
+                        <div class="col-md-12"><label class="form-label">Study Name</label><input type="text" id="editStudyName" class="form-control"></div>
+                        <div class="col-md-4"><label class="form-label">Supervisor</label><select id="editStudySupervisor" class="form-select"></select></div>
+                        <div class="col-md-4"><label class="form-label">Primary Lab</label><select id="editStudyPrimaryLab" class="form-select" onchange="filterWorkplacesForStudy('edit')"></select></div>
+                        <div class="col-md-4">
+                            <label class="form-label">Location Type</label>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="editStudyBooksEntireLab" onchange="toggleStudyWorkplaceSelection('edit')">
+                                <label class="form-check-label" for="editStudyBooksEntireLab">Entire Lab</label>
+                            </div>
+                        </div>
+                        <div class="col-md-12" id="editStudyWorkplaceDualListboxContainer">
+                            <label class="form-label small">Specific Workplaces (within selected Lab)</label>
+                            <div class="dual-listbox d-flex justify-content-between">
+                                <div class="list-container w-45"><input type="text" class="form-control form-control-sm mb-2" id="editStudyWorkplacesFilter" onkeyup="filterDualList('editStudyWorkplacesFilter', 'editStudyAvailableWorkplaces')" placeholder="Filter available..."><select multiple class="form-select" id="editStudyAvailableWorkplaces" size="8"></select></div>
+                                <div class="controls d-flex flex-column justify-content-center align-items-center px-2"><button type="button" class="btn btn-sm btn-outline-secondary mb-2" onclick="moveDualListItems('editStudyAvailableWorkplaces', 'editStudyAssignedWorkplaces')">&gt;</button><button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveDualListItems('editStudyAssignedWorkplaces', 'editStudyAvailableWorkplaces')">&lt;</button></div>
+                                <div class="list-container w-45"><p class="text-muted small mb-2 text-center">Assigned to Study</p><select multiple class="form-select" id="editStudyAssignedWorkplaces" size="8"></select></div>
+                            </div>
+                        </div>
+                        <div class="col-md-6"><label class="form-label">Start Date</label><input type="text" id="editStudyStart" class="form-control flatpickr-date bg-white"></div>
+                        <div class="col-md-6"><label class="form-label">End Date</label><input type="text" id="editStudyEnd" class="form-control flatpickr-date bg-white"></div>
+                        <div class="col-md-12">
+                            <label class="form-label small">Dedicated Equipment</label>
+                            <div class="dual-listbox d-flex justify-content-between">
+                                <div class="list-container w-45">
+                                    <input type="text" class="form-control form-control-sm mb-2" id="editStudyEqFilter" onkeyup="filterDualList('editStudyEqFilter', 'editStudyAvailableEq')" placeholder="Filter available...">
+                                    <select multiple class="form-select" id="editStudyAvailableEq" size="8"></select>
+                                </div>
+                                <div class="controls d-flex flex-column justify-content-center align-items-center px-2">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary mb-2" onclick="moveDualListItems('editStudyAvailableEq', 'editStudyDedicatedEq')">&gt;</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveDualListItems('editStudyDedicatedEq', 'editStudyAvailableEq')">&lt;</button>
+                                </div>
+                                <div class="list-container w-45">
+                                    <p class="text-muted small mb-2 text-center">Assigned to Study</p>
+                                    <select multiple class="form-select" id="editStudyDedicatedEq" size="8"></select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmEditStudy()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Resource Modal -->
+    <div class="modal fade" id="pauseResourceModal" tabindex="-1" aria-labelledby="pauseResourceModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" id="pauseResourceModalLabel">Pause Resource</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <p>Pausing: <strong id="pauseResourceName"></strong></p>
+                    <div class="mb-3">
+                        <label for="pauseEndDate" class="form-label">End Date (Optional)</label>
+                        <input type="text" id="pauseEndDate" class="form-control flatpickr-date bg-white" placeholder="Leave blank for indefinite pause">
+                    </div>
+                    <input type="hidden" id="pauseResourceType">
+                    <input type="hidden" id="pauseResourceId">
+                </div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-warning" onclick="confirmPauseResource()">Confirm Pause</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit User Role Modal -->
+    <div class="modal fade" id="editUserRoleModal" tabindex="-1" aria-labelledby="editUserRoleModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editUserRoleModalLabel">Edit User Role</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Editing role for: <strong id="editUserUsername"></strong></p>
+                    <div class="mb-3">
+                        <label for="editRoleSelect" class="form-label">Assign Role:</label>
+                        <select class="form-select" id="editRoleSelect">
+                            <option value="student">Student</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="professor">Professor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <input type="hidden" id="editUserId">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmEditUserRole()">Save Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Equipment Modal -->
+    <div class="modal fade" id="editEquipmentModal" tabindex="-1" aria-labelledby="editEquipmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header"><h5 class="modal-title" id="editEquipmentModalLabel">Edit Equipment</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body"><input type="hidden" id="editEqId"><div class="mb-3"><label for="editEqName" class="form-label">Device Name</label><input type="text" id="editEqName" class="form-control"></div><div class="mb-3"><label for="editEqSerial" class="form-label">Serial Number</label><input type="text" id="editEqSerial" class="form-control"></div></div>
+                <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" onclick="confirmEditEquipment()">Save Changes</button></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Info/Confirm Modal -->
+    <div class="modal fade" id="infoModal" tabindex="-1" aria-labelledby="infoModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="infoModalLabel">Notification</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="infoModalBody"></div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" id="infoModalCancelBtn">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="infoModalConfirmBtn">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentRole = null; 
+        let currentUserId = null;
+        let appMetadata = {}; // Store all metadata globally
+        let dedicatedEquipmentForSelectedStudy = [];
+
+        document.getElementById('studySelect').addEventListener('change', function() {
+            const studyId = this.value;
+            if (!studyId || !appMetadata.studies) { dedicatedEquipmentForSelectedStudy = []; return; }
+            const selectedStudy = appMetadata.studies.find(s => s.id == studyId);
+            dedicatedEquipmentForSelectedStudy = selectedStudy ? selectedStudy.dedicated_equipment.map(eq => eq.id) : [];
+        });
+        
+        async function login() {
+            const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: document.getElementById('username').value, password: document.getElementById('password').value }) });
+            if (res.ok) {
+                const data = await res.json();
+                currentRole = data.role; currentUserId = data.user_id;
+                document.getElementById('userDisplay').innerText = `Role: ${currentRole.toUpperCase()}`;
+                
+                if(currentRole === 'supervisor') {
+                    document.querySelectorAll('.btn-admin-only').forEach(el => el.classList.add('hidden'));
+                }
+
+                document.getElementById('myBookingsTabBtn').classList.remove('hidden');
+                document.getElementById('calendarTabBtn').classList.remove('hidden');
+                if(['admin', 'professor', 'supervisor'].includes(currentRole)) {
+                    document.getElementById('adminTabBtn').classList.remove('hidden');
+                    document.getElementById('myBookingsTabBtn').innerText = 'All Bookings';
+                    document.getElementById('bookingsTitle').innerText = 'Master Bookings List';
+                }
+                document.getElementById('authContainer').classList.add('hidden');
+                document.getElementById('appSection').classList.remove('hidden');
+                fetchMetadata(); 
+            } else { const err = await res.json(); showInfoModal('Login Failed', err.error || "Invalid credentials"); }
+        }
+
+        async function logout() { await fetch('/api/logout', { method: 'POST' }); window.location.reload(); }
+        function toggleAuth(view) { 
+            document.getElementById('loginSection').classList.toggle('hidden', view !== 'login'); 
+            document.getElementById('registerSection').classList.toggle('hidden', view !== 'register'); 
+            document.getElementById('forgotSection').classList.toggle('hidden', view !== 'forgot'); 
+        }
+
+        async function registerAccount() {
+            const u = document.getElementById('regUsername').value; if(!u.endsWith('@tu-ilmenau.de')) return showInfoModal('Registration Error', "Must use a @tu-ilmenau.de email.");
+            const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ username: u, password: document.getElementById('regPassword').value, role: document.getElementById('regRole').value }) });
+            const data = await res.json();
+            if (res.ok) { showInfoModal('Registration Successful', data.message); toggleAuth('login'); } else { showInfoModal('Registration Failed', data.error); }
+        }
+
+        async function requestPasswordReset() {
+            const email = document.getElementById('forgotEmail').value;
+            if (!email) return showInfoModal('Input Required', 'Please enter your email address.');
+            const res = await fetch('/api/forgot_password', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({email: email})
+            });
+            const data = await res.json();
+            showInfoModal('Request Sent', data.message);
+            toggleAuth('login');
+        }
+
+        async function processPasswordReset() {
+            const password = document.getElementById('resetPassword').value;
+            const confirmPassword = document.getElementById('resetPasswordConfirm').value;
+            if (password !== confirmPassword) { return showInfoModal('Password Mismatch', 'The passwords do not match.'); }
+            if (password.length < 6) { return showInfoModal('Password Too Short', 'Password must be at least 6 characters long.'); }
+            const token = document.getElementById('resetToken').value;
+            const res = await fetch('/api/reset_password', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({token: token, password: password}) });
+            const data = await res.json();
+            if (res.ok) { showInfoModal('Success', data.message, () => { window.location.href = '/'; }); } 
+            else { showInfoModal('Error', data.error, () => { window.location.href = '/'; }); }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.app-panel').forEach(id => id.classList.add('hidden'));
+            document.getElementById(`${tab}Panel`).classList.remove('hidden');
+            if(tab === 'admin') showAdminTab('pendingBookings');
+            if(tab === 'myBookings') fetchReservations();
+            if(tab === 'calendar') setTimeout(() => renderCalendar(), 100); 
+        }
+
+        function formatAttributes(attrObj) {
+            if(!attrObj || Object.keys(attrObj).length === 0) return '';
+            let html = '<div class="mt-1">';
+            for(const [key, val] of Object.entries(attrObj)) { html += `<span class="custom-badge text-muted"><b>${key}:</b> ${val}</span>`; }
+            return html + '</div>';
+        }
+
+        async function fetchMetadata() {
+            const res = await fetch('/api/metadata');
+            appMetadata = await res.json(); // Store for later use
+
+            document.getElementById('studySelect').innerHTML = '<option value="">-- Select Study --</option>' + appMetadata.studies.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            const wpHTML = appMetadata.workplaces.map(w => `<option value="${w.id}">${w.name}</option>`).join('');
+            document.getElementById('newStudyAvailableWorkplaces').innerHTML = wpHTML; // For dual listbox
+            document.getElementById('editStudyAvailableWorkplaces').innerHTML = wpHTML; // For dual listbox
+
+            const labHTML = appMetadata.labs.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+            document.getElementById('newWorkplaceLab').innerHTML = labHTML;
+            document.getElementById('newStudyPrimaryLab').innerHTML = '<option value="">-- Select Lab --</option>' + labHTML; // For study creation
+            document.getElementById('editStudyPrimaryLab').innerHTML = '<option value="">-- Select Lab --</option>' + labHTML; // For study editing
+            const typeHTML = '<option value="">-- Workplace Only (No Equipment) --</option>' + appMetadata.equipment_types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            document.getElementById('bookType').innerHTML = typeHTML;
+            const pureTypeHTML = appMetadata.equipment_types.map(t => `<option value="${t.id}">${t.name}</option>`).join('');
+            document.getElementById('invType').innerHTML = pureTypeHTML;
+            document.getElementById('adminInvType').innerHTML = pureTypeHTML;
+            document.getElementById('newEqType').innerHTML = pureTypeHTML;
+            const supervisorHTML = '<option value="">-- Assign Supervisor --</option>' + appMetadata.supervisors.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+            document.getElementById('newStudySupervisor').innerHTML = supervisorHTML;
+            document.getElementById('editStudySupervisor').innerHTML = supervisorHTML;
+
+            // Populate the "Available" list for creating a new study
+            document.getElementById('newStudyAvailableEq').innerHTML = appMetadata.all_equipment.map(eq => `<option value="${eq.id}">${eq.name}</option>`).join('');
+            fetchInventory();
+            setupBookingStudyChangeListener(); // Setup the listener for study selection
+        }
+
+        async function fetchReservations() {
+            const res = await fetch('/api/reservations');
+            const data = await res.json();
+            const tbody = document.getElementById('myBookingsTable');
+            tbody.innerHTML = '';
+            if(data.length === 0) { tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-3">No reservations found.</td></tr>`; return; }
+            data.forEach(r => {
+                const statusHtml = r.status === 'Approved' ? `<span class="badge bg-success">Approved</span>` : `<span class="badge bg-warning text-dark">Pending</span>`;
+                const locationsHtml = r.locations.map(loc => `<span class="custom-badge">${loc}</span>`).join(' ');
+                const itemsHtml = r.items.length > 0 ? r.items.map(item => `<span class="custom-badge">${item}</span>`).join(' ') : '<em>Location-Only</em>';
+                tbody.innerHTML += `<tr><td>${r.user}</td><td>${r.study}</td><td>${locationsHtml}</td><td>${itemsHtml}</td><td><small>${r.start}<br>to ${r.end}</small></td><td>${statusHtml}</td><td><button class="btn btn-outline-danger btn-sm" onclick="cancelReservation('${r.group_id}')">Cancel</button></td></tr>`;
+            });
+        }
+
+        async function cancelReservation(groupId) {
+            showInfoModal('Confirm Cancellation', 'Are you sure you want to cancel this reservation?', async () => {
+                const res = await fetch(`/api/reservations/${groupId}`, { method: 'DELETE' });
+                if(res.ok) {
+                    fetchReservations();
+                    if(labCalendar) labCalendar.refetchEvents(); // Also refresh calendar
+                } else {
+                    showInfoModal('Error', (await res.json()).error);
+                }
+            });
+        }
+
+        async function fetchInventory() {
+            const typeId = document.getElementById('invType').value;
+            if(!typeId) return;
+            const items = await (await fetch(`/api/items/${typeId}`)).json();
+            const tbody = document.getElementById('inventoryTable'); tbody.innerHTML = '';
+            items.forEach(i => { tbody.innerHTML += `<tr><td>${i.id}</td><td><b>${i.name}</b>${formatAttributes(i.custom_attributes)}</td><td>${i.serial_no || '-'}</td><td>${i.is_paused ? '<span class="badge bg-danger">Maintenance</span>' : '<span class="badge bg-success">Available</span>'}</td></tr>`; });
+        }
+
+        function filterEquipment() {
+            const filterText = document.getElementById('equipmentFilter').value.toLowerCase();
+            const rows = document.getElementById('availableItemsTable').getElementsByTagName('tr');
+            for (let i = 0; i < rows.length; i++) {
+                if (rows[i].cells.length < 4) continue; 
+                rows[i].style.display = rows[i].innerText.toLowerCase().includes(filterText) ? "" : "none";
+            }
+        }
+
+        async function searchAvailable() {
+            const typeId = document.getElementById('bookType').value;
+            const studyId = document.getElementById('studySelect').value;
+            
+            const sDate = document.getElementById('startDate').value; const sTime = document.getElementById('startTime').value;
+            const eDate = document.getElementById('endDate').value; const eTime = document.getElementById('endTime').value;
+            if(!studyId || !sDate || !sTime || !eDate || !eTime) return showInfoModal('Input Required', "Please select a study and timeframe before searching.");
+            
+            const start = `${sDate}T${sTime}`; const end = `${eDate}T${eTime}`;
+            
+            const res = await fetch(`/api/search_available?type_id=${typeId}&study_id=${studyId}&start=${start}&end=${end}`);
+            if(!res.ok) return showInfoModal('Search Error', (await res.json()).error);
+            
+            const items = await res.json();
+            document.getElementById('resultsSection').classList.remove('hidden'); 
+            const tbody = document.getElementById('availableItemsTable'); 
+            let tableHtml = '';
+
+            if(!typeId && dedicatedEquipmentForSelectedStudy.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="text-center text-success py-3 fw-bold">Workplace is Available! Click Submit to book Workplace-Only.</td></tr>`; return; }
+            if(items.length === 0) { tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-3">No equipment available.</td></tr>`; return; }
+            items.forEach(i => { 
+                const isDedicated = dedicatedEquipmentForSelectedStudy.includes(i.id);
+                const checkedAttr = isDedicated ? 'checked' : '';
+                const rowClass = isDedicated ? 'table-primary' : '';
+                tableHtml += `<tr class="${rowClass}"><td><input type="checkbox" class="form-check-input multi-check" data-id="${i.id}" ${checkedAttr}></td><td>${i.id}</td><td><b>${i.name}</b>${formatAttributes(i.custom_attributes)}</td><td>${i.serial_no || '-'}</td></tr>`; 
+            });
+            tbody.innerHTML = tableHtml;
+        }
+
+        async function processBooking() {
+            const typeId = document.getElementById('bookType').value;
+            const checkboxes = document.querySelectorAll('.multi-check:checked');
+            if(typeId && checkboxes.length === 0) return showInfoModal('Input Required', "Select an item, or choose 'Workplace Only' in step 2.");
+            
+            const bookingScope = document.querySelector('input[name="bookingScopeRadio"]:checked').value;
+            let selectedWorkplaceIds = [];
+            if (bookingScope === 'individual_workplaces') { selectedWorkplaceIds = Array.from(document.getElementById('bookingAssignedWorkplaces').options).map(opt => opt.value); }
+
+            const res = await fetch('/api/book', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    start_date: `${document.getElementById('startDate').value}T${document.getElementById('startTime').value}`,
+                    end_date: `${document.getElementById('endDate').value}T${document.getElementById('endTime').value}`,
+                    study_id: document.getElementById('studySelect').value, 
+                    equipment_ids: Array.from(checkboxes).map(cb => cb.getAttribute('data-id')),
+                    booking_scope: bookingScope, // New
+                    selected_workplace_ids: selectedWorkplaceIds // New
+                })
+            });
+            const data = await res.json();
+            if(res.ok) { showInfoModal('Booking Status', data.message); document.getElementById('resultsSection').classList.add('hidden'); } else { showInfoModal('Booking Error', data.error); }
+        }
+
+        let labCalendar;
+        function renderCalendar() {
+            let calendarEl = document.getElementById('calendar');
+            if(labCalendar) { labCalendar.destroy(); } 
+            labCalendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'timeGridWeek', slotMinTime: '06:00:00', slotMaxTime: '22:00:00', height: 'auto', 
+                headerToolbar: { left: 'prev,next', center: 'title', right: 'dayGridMonth,timeGridWeek' },
+                events: '/api/calendar',
+                eventClick: function(info) {
+                    const props = info.event.extendedProps;
+                    let title = info.event.title;
+                    let bodyHtml = '';
+
+                    if (props.eventType === 'booking') {
+                        title = 'Booking Details';
+                        bodyHtml = `
+                            <p><strong>User:</strong> ${props.user}</p>
+                            <p><strong>Study:</strong> ${props.study}</p>
+                            <p><strong>Locations:</strong><br>${props.locations.map(loc => `<span class="custom-badge">${loc}</span>`).join(' ')}</p>
+                            <p><strong>Items:</strong><br>${props.items.length > 0 ? props.items.map(item => `<span class="custom-badge">${item}</span>`).join(' ') : '<em>Location-Only Booking</em>'}</p>
+                            <p><strong>Time:</strong> ${props.start} - ${props.end}</p>
+                            <p><strong>Status:</strong> <span class="badge ${props.status === 'Approved' ? 'bg-success' : 'bg-warning'}">${props.status}</span></p>
+                        `;
+                    } else if (props.eventType === 'maintenance') {
+                        title = 'Maintenance Alert';
+                        bodyHtml = `<p><strong>Resource:</strong> ${props.resourceName}</p><p>This resource is under maintenance until ${props.endDate}.</p>`;
+                    } else if (props.eventType === 'study') {
+                        title = 'Study Information';
+                        bodyHtml = `<p><strong>Study:</strong> ${info.event.title.replace('STUDY: ', '')}</p><p><strong>Supervisor:</strong> ${props.supervisor}</p><p><strong>Location:</strong> ${props.location}</p>`;
+                    }
+                    showInfoModal(title, bodyHtml);
+                }
+            });
+            labCalendar.render();
+        }
+
+        // ================= ADMIN DASHBOARD =================
+        function showAdminTab(tab) {
+            document.querySelectorAll('.admin-section').forEach(t => t.classList.add('hidden'));
+            document.getElementById(`${tab}Section`).classList.remove('hidden');
+            if(tab === 'pendingUsers') fetchPendingUsers(); if(tab === 'manageUsers') fetchAllUsers();
+            if(tab === 'pendingBookings') fetchPendingBookings(); if(tab === 'manageStudies') { fetchStudies(); fetchMetadata(); }
+            if(tab === 'manageWorkplaces') fetchWorkplaces(); if(tab === 'manageEquipment') fetchAdminEquipment();
+        }
+
+        async function fetchPendingUsers() { 
+            const res = await fetch('/api/admin/pending_users'); 
+            const data = await res.json(); 
+            const tbody = document.getElementById('pendingUsersTable'); 
+            tbody.innerHTML = ''; 
+            data.forEach(u => { 
+                tbody.innerHTML += `<tr><td>${u.username}</td><td><span class="badge bg-secondary">${u.role}</span></td><td><button class="btn btn-success btn-sm" onclick="openApproveUserModal(${u.id}, '${u.username}', '${u.role}')">Approve</button></td></tr>`; 
+            }); 
+        }
+
+        function openApproveUserModal(userId, username, currentRole) {
+            document.getElementById('approveUserId').value = userId;
+            document.getElementById('approveUsername').textContent = username;
+            document.getElementById('userRoleSelect').value = currentRole;
+            const approveModal = new bootstrap.Modal(document.getElementById('approveUserModal'));
+            approveModal.show();
+        }
+
+        async function confirmApproveUser() {
+            const userId = document.getElementById('approveUserId').value;
+            const selectedRole = document.getElementById('userRoleSelect').value;
+            const response = await fetch(`/api/admin/approve_user/${userId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role: selectedRole })
+            });
+            const result = await response.json();
+            if (response.ok) { showInfoModal('Success', result.message); bootstrap.Modal.getInstance(document.getElementById('approveUserModal')).hide(); fetchPendingUsers(); } 
+            else { showInfoModal('Error', result.error); }
+        }
+
+        async function fetchAllUsers() { 
+            const res = await fetch('/api/admin/users'); 
+            const data = await res.json(); 
+            const tbody = document.getElementById('allUsersTable'); tbody.innerHTML = ''; 
+            data.forEach(u => {
+                let actionButtons = (currentRole === 'admin') ? `<button class="btn btn-outline-dark btn-sm m-1" onclick="openEditUserRoleModal(${u.id}, '${u.username}', '${u.role}')">Edit Role</button><button class="btn btn-outline-danger btn-sm m-1" onclick="deleteUser(${u.id})">Del</button>` : '';
+                tbody.innerHTML += `<tr><td>${u.username}</td><td><span class="badge bg-secondary">${u.role}</span></td><td>${u.is_active ? '<span class="text-success">Active</span>' : '<span class="text-warning">Pending</span>'}</td><td>${actionButtons}</td></tr>`; 
+            }); 
+        }
+        
+        function openEditUserRoleModal(userId, username, currentRole) {
+            document.getElementById('editUserId').value = userId;
+            document.getElementById('editUserUsername').textContent = username;
+            document.getElementById('editRoleSelect').value = currentRole;
+            const editModal = new bootstrap.Modal(document.getElementById('editUserRoleModal'));
+            editModal.show();
+        }
+
+        async function confirmEditUserRole() {
+            const userId = document.getElementById('editUserId').value;
+            const newRole = document.getElementById('editRoleSelect').value;
+            await fetch(`/api/admin/users/${userId}`, { method: 'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({role: newRole}) });
+            bootstrap.Modal.getInstance(document.getElementById('editUserRoleModal')).hide();
+            fetchAllUsers();
+            showInfoModal('Success', 'User role has been updated.');
+        }
+
+        async function deleteUser(id) { showInfoModal('Confirm Deletion', 'Are you sure you want to delete this user?', async () => { await fetch(`/api/admin/users/${id}`, { method: 'DELETE' }); fetchAllUsers(); }); }
+        
+        async function fetchPendingBookings() { 
+            const data = await (await fetch('/api/admin/pending_reservations')).json(); 
+            const tbody = document.getElementById('pendingBookingsTable'); 
+            tbody.innerHTML = ''; 
+            if(data.length===0){tbody.innerHTML=`<tr><td colspan="6" class="text-center text-muted">No pending approvals.</td></tr>`;return;} 
+            data.forEach(b => { 
+                const itemsHtml = b.items.map(item => `<span class="custom-badge">${item}</span>`).join(' ');
+                tbody.innerHTML += `<tr><td>${b.user}</td><td>${b.study}</td><td><b class="text-primary">${b.target}</b></td><td>${itemsHtml}</td><td><small>${b.start}<br>to ${b.end}</small></td><td><button class="btn btn-success btn-sm m-1" onclick="handleRes('${b.group_id}', 'approve')">Approve</button><button class="btn btn-danger btn-sm m-1" onclick="handleRes('${b.group_id}', 'reject')">Reject</button></td></tr>`; 
+            }); 
+        }
+        async function handleRes(groupId, action) { 
+            await fetch(`/api/admin/${action}_reservation/${groupId}`, { method: 'POST' }); 
+            fetchPendingBookings(); 
+        }
+        
+        async function fetchStudies() { const data = await (await fetch('/api/admin/studies')).json(); const tbody = document.getElementById('studiesTable'); tbody.innerHTML = ''; data.forEach(s => { let btns = ['admin', 'professor'].includes(currentRole) || (currentRole==='supervisor' && s.supervisor_id===currentUserId) ? `<button class="btn btn-outline-dark btn-sm m-1" onclick="openEditStudyModal(${s.id})">Edit</button> <button class="btn btn-outline-danger btn-sm m-1" onclick="deleteStudy(${s.id})">Del</button>` : `<span class="text-muted small">No Access</span>`; const dedicatedEqHtml = s.dedicated_equipment.map(eq => `<span class="custom-badge">${eq.name}</span>`).join(' '); tbody.innerHTML += `<tr><td>${s.id}</td><td><b>${s.name}</b></td><td>${s.supervisor}</td><td>${s.target_location}</td><td><small>${s.start_date}<br>to ${s.end_date}</small></td><td>${dedicatedEqHtml || '-'}</td><td>${btns}</td></tr>`; }); }
+        async function addStudy() {
+            const n = document.getElementById('newStudyName').value;
+            const s = document.getElementById('newStudyStart').value;
+            const e = document.getElementById('newStudyEnd').value;
+            const sup = document.getElementById('newStudySupervisor').value;
+            const primaryLabId = document.getElementById('newStudyPrimaryLab').value;
+            const booksEntireLab = document.getElementById('newStudyBooksEntireLab').checked;
+            if(!n || !s || !e || !sup || !primaryLabId) return showInfoModal('Input Required', 'Please fill all required study fields.');
+
+            // Collect workplace IDs if not booking entire lab
+            let workplace_ids = [];
+            if (!booksEntireLab) {
+                workplace_ids = Array.from(document.getElementById('newStudyAssignedWorkplaces').options).map(opt => opt.value);
+                if (workplace_ids.length === 0) return showInfoModal('Input Required', 'Please assign at least one workplace if not booking the entire lab.');
+            }
+
+            const eq_ids = Array.from(document.getElementById('newStudyDedicatedEq').options).map(opt => opt.value);
+            const payload = {name: n, start_date: s, end_date: e, supervisor_id: sup, primary_lab_id: primaryLabId, books_entire_lab: booksEntireLab, workplace_ids: workplace_ids, equipment_ids: eq_ids};
+            const res = await fetch('/api/studies', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); 
+            if (!res.ok) { const err = await res.json(); return showInfoModal('Error Creating Study', err.error); }
+            fetchStudies(); 
+            fetchMetadata(); 
+        }
+        async function deleteStudy(id) { showInfoModal('Confirm Deletion', 'Are you sure you want to delete this study?', async () => { await fetch(`/api/studies/${id}`, { method: 'DELETE' }); fetchStudies(); fetchMetadata(); }); }
+
+        async function openEditStudyModal(studyId) {
+            const res = await fetch(`/api/studies/${studyId}`);
+            if (!res.ok) return showInfoModal('Error', 'Could not fetch study details.');
+            const study = await res.json();
+
+            document.getElementById('editStudyId').value = study.id;
+            document.getElementById('editStudyName').value = study.name;
+            document.getElementById('editStudySupervisor').value = study.supervisor_id;
+            document.getElementById('editStudyPrimaryLab').value = study.primary_lab_id;
+            document.getElementById('editStudyBooksEntireLab').checked = study.books_entire_lab;
+
+            // Setup dual listbox for workplaces based on study config
+            // Populate the dual listboxes for workplaces
+            const allWorkplaces = appMetadata.workplaces.filter(wp => wp.lab_id == study.primary_lab_id);
+            const assignedWorkplaceIds = new Set(study.workplace_ids);
+            const availableWorkplacesListbox = document.getElementById('editStudyAvailableWorkplaces');
+            const assignedWorkplacesListbox = document.getElementById('editStudyAssignedWorkplaces');
+            availableWorkplacesListbox.innerHTML = '';
+            assignedWorkplacesListbox.innerHTML = '';
+
+            allWorkplaces.forEach(wp => {
+                const option = new Option(wp.name, wp.id);
+                if (assignedWorkplaceIds.has(wp.id)) { assignedWorkplacesListbox.add(option); }
+                else { availableWorkplacesListbox.add(option); }
+            });
+
+            toggleStudyWorkplaceSelection('edit'); // Apply visibility based on booksEntireLab
+            filterWorkplacesForStudy('edit'); // Filter available workplaces by selected lab
+
+            flatpickr("#editStudyStart", {defaultDate: study.start_date});
+            flatpickr("#editStudyEnd", {defaultDate: study.end_date});
+
+            // Populate the dual listboxes for editing
+            const allEquipment = appMetadata.all_equipment;
+            const dedicatedIds = new Set(study.dedicated_equipment_ids);
+            const availableListbox = document.getElementById('editStudyAvailableEq');
+            const dedicatedListbox = document.getElementById('editStudyDedicatedEq');
+            availableListbox.innerHTML = '';
+            dedicatedListbox.innerHTML = '';
+
+            allEquipment.forEach(eq => {
+                const option = new Option(eq.name, eq.id);
+                if (dedicatedIds.has(eq.id)) { dedicatedListbox.add(option); } 
+                else { availableListbox.add(option); }
+            });
+
+            const modal = new bootstrap.Modal(document.getElementById('editStudyModal'));
+            modal.show();
+        }
+
+        async function confirmEditStudy() {
+            const studyId = document.getElementById('editStudyId').value;
+            const primaryLabId = document.getElementById('editStudyPrimaryLab').value;
+            const booksEntireLab = document.getElementById('editStudyBooksEntireLab').checked;
+
+            // Collect workplace IDs if not booking entire lab
+            let workplace_ids = [];
+            if (!booksEntireLab) {
+                workplace_ids = Array.from(document.getElementById('editStudyAssignedWorkplaces').options).map(opt => opt.value);
+                if (workplace_ids.length === 0) return showInfoModal('Input Required', 'Please assign at least one workplace if not booking the entire lab.');
+            }
+
+            const payload = {
+                name: document.getElementById('editStudyName').value,
+                supervisor_id: document.getElementById('editStudySupervisor').value,
+                primary_lab_id: primaryLabId,
+                books_entire_lab: booksEntireLab,
+                workplace_ids: workplace_ids,
+                start_date: document.getElementById('editStudyStart').value,
+                end_date: document.getElementById('editStudyEnd').value,
+                equipment_ids: Array.from(document.getElementById('editStudyDedicatedEq').options).map(opt => opt.value)
+            };
+            const res = await fetch(`/api/studies/${studyId}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+            if (!res.ok) { const err = await res.json(); return showInfoModal('Error Saving Study', err.error); }
+            bootstrap.Modal.getInstance(document.getElementById('editStudyModal')).hide();
+            fetchStudies();
+            fetchMetadata();
+        }
+
+        // Generic Modal Logic
+        const infoModal = new bootstrap.Modal(document.getElementById('infoModal'));
+        let confirmCallback = null;
+        function showInfoModal(title, message, onConfirm = null) {
+            document.getElementById('infoModalLabel').textContent = title;
+            document.getElementById('infoModalBody').innerHTML = message;
+            const confirmBtn = document.getElementById('infoModalConfirmBtn');
+            const cancelBtn = document.getElementById('infoModalCancelBtn');
+            if (onConfirm) {
+                confirmCallback = onConfirm;
+                confirmBtn.textContent = 'Confirm';
+                cancelBtn.style.display = 'inline-block';
+            } else {
+                confirmCallback = null;
+                confirmBtn.textContent = 'OK';
+                cancelBtn.style.display = 'none';
+            }
+            infoModal.show();
+        }
+        document.getElementById('infoModalConfirmBtn').addEventListener('click', () => { if (confirmCallback) { confirmCallback(); } infoModal.hide(); });
+
+        // Dual Listbox Helper Functions
+        function filterDualList(filterInputId, listboxId) {
+            const filter = document.getElementById(filterInputId).value.toLowerCase();
+            const listbox = document.getElementById(listboxId);
+            for (const option of listbox.options) {
+                option.style.display = option.text.toLowerCase().includes(filter) ? "" : "none";
+            }
+        }
+        function moveDualListItems(sourceId, destinationId) {
+            const sourceListbox = document.getElementById(sourceId);
+            const destinationListbox = document.getElementById(destinationId);
+            Array.from(sourceListbox.selectedOptions).forEach(option => { destinationListbox.add(option); });
+        }
+
+        function toggleStudyWorkplaceSelection(prefix) {
+            const booksEntireLabCheckbox = document.getElementById(`${prefix}StudyBooksEntireLab`);
+            const workplaceDualListboxContainer = document.getElementById(`${prefix}StudyWorkplaceDualListboxContainer`);
+
+            if (booksEntireLabCheckbox.checked) {
+                workplaceDualListboxContainer.classList.add('hidden');
+            } else {
+                workplaceDualListboxContainer.classList.remove('hidden');
+            }
+        }
+
+        // Filters the available workplaces in the dual listbox based on the selected primary lab
+        function filterWorkplacesForStudy(prefix) {
+            const primaryLabSelect = document.getElementById(`${prefix}StudyPrimaryLab`);
+            const selectedLabId = primaryLabSelect.value;
+            const availableWorkplacesListbox = document.getElementById(`${prefix}StudyAvailableWorkplaces`);
+            const assignedWorkplacesListbox = document.getElementById(`${prefix}StudyAssignedWorkplaces`);
+
+            // Clear and repopulate available workplaces based on selected lab
+            availableWorkplacesListbox.innerHTML = '';
+            // Move any assigned workplaces that don't belong to the new lab back to available
+            // This ensures consistency if the primary lab is changed
+            Array.from(assignedWorkplacesListbox.options).forEach(opt => {
+                const workplace = appMetadata.workplaces.find(wp => wp.id == opt.value);
+                if (!workplace || workplace.lab_id != selectedLabId) { opt.remove(); }
+            });
+
+            // Populate available list with workplaces from the newly selected lab
+            const workplacesInSelectedLab = appMetadata.workplaces.filter(wp => wp.lab_id == selectedLabId);
+            workplacesInSelectedLab.forEach(wp => {
+                if (!Array.from(assignedWorkplacesListbox.options).some(opt => opt.value == wp.id)) {
+                    availableWorkplacesListbox.add(new Option(wp.name, wp.id));
+                }
+            });
+        }
+
+        // NEW: Booking Scope UI Logic
+        function setupBookingStudyChangeListener() {
+            document.getElementById('studySelect').addEventListener('change', function() {
+                const studyId = this.value;
+                const bookingScopeContainer = document.getElementById('bookingScopeContainer');
+                const individualWorkplacesDualListboxContainer = document.getElementById('individualWorkplacesDualListboxContainer');
+                
+                if (!studyId) {
+                    bookingScopeContainer.classList.add('hidden');
+                    individualWorkplacesDualListboxContainer.innerHTML = ''; // Clear dual listbox
+                    return;
+                }
+
+                const selectedStudy = appMetadata.studies.find(s => s.id == studyId);
+                if (!selectedStudy) { return; }
+
+                bookingScopeContainer.classList.remove('hidden');
+                individualWorkplacesDualListboxContainer.innerHTML = ''; // Clear previous dual listbox
+
+                // Reset radio buttons and set default based on study config
+                document.getElementById('scopeEntireLab').checked = false;
+                document.getElementById('scopeAllAssignedWorkplaces').checked = false;
+                document.getElementById('scopeIndividualWorkplaces').checked = false;
+
+                document.getElementById('scopeEntireLab').parentElement.classList.add('hidden');
+                document.getElementById('scopeAllAssignedWorkplaces').parentElement.classList.add('hidden');
+
+                if (selectedStudy.books_entire_lab) {
+                    document.getElementById('scopeEntireLab').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeIndividualWorkplaces').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeEntireLab').checked = true; // Default for entire lab studies
+                } else {
+                    document.getElementById('scopeAllAssignedWorkplaces').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeIndividualWorkplaces').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeAllAssignedWorkplaces').checked = true; // Default for specific WPs studies
+                }
+                toggleBookingScopeWorkplaces(); // Update dual listbox visibility
+            });
+        }
+
+        function toggleBookingScopeWorkplaces() {
+            const bookingScope = document.querySelector('input[name="bookingScopeRadio"]:checked').value;
+            const individualWorkplacesDualListboxContainer = document.getElementById('individualWorkplacesDualListboxContainer');
+            const studyId = document.getElementById('studySelect').value;
+            const selectedStudy = appMetadata.studies.find(s => s.id == studyId);
+
+            if (bookingScope === 'individual_workplaces' && selectedStudy) {
+                individualWorkplacesDualListboxContainer.classList.remove('hidden');
+                populateBookingWorkplacesDualListbox(selectedStudy);
+            } else {
+                individualWorkplacesDualListboxContainer.classList.add('hidden');
+                individualWorkplacesDualListboxContainer.innerHTML = ''; // Clear dual listbox content
+            };
+        }
+
+        // NEW: Booking Scope UI Logic
+        function setupBookingStudyChangeListener() {
+            document.getElementById('studySelect').addEventListener('change', function() {
+                const studyId = this.value;
+                const bookingScopeContainer = document.getElementById('bookingScopeContainer');
+                const individualWorkplacesDualListboxContainer = document.getElementById('individualWorkplacesDualListboxContainer');
+                
+                if (!studyId) {
+                    bookingScopeContainer.classList.add('hidden');
+                    individualWorkplacesDualListboxContainer.innerHTML = ''; // Clear dual listbox
+                    return;
+                }
+
+                const selectedStudy = appMetadata.studies.find(s => s.id == studyId);
+                if (!selectedStudy) { return; }
+
+                bookingScopeContainer.classList.remove('hidden');
+                individualWorkplacesDualListboxContainer.innerHTML = ''; // Clear previous dual listbox
+
+                // Reset radio buttons and set default based on study config
+                document.getElementById('scopeEntireLab').checked = false;
+                document.getElementById('scopeAllAssignedWorkplaces').checked = false;
+                document.getElementById('scopeIndividualWorkplaces').checked = false;
+
+                document.getElementById('scopeEntireLab').parentElement.classList.add('hidden');
+                document.getElementById('scopeAllAssignedWorkplaces').parentElement.classList.add('hidden');
+
+                if (selectedStudy.books_entire_lab) {
+                    document.getElementById('scopeEntireLab').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeIndividualWorkplaces').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeEntireLab').checked = true; // Default for entire lab studies
+                } else {
+                    document.getElementById('scopeAllAssignedWorkplaces').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeIndividualWorkplaces').parentElement.classList.remove('hidden');
+                    document.getElementById('scopeAllAssignedWorkplaces').checked = true; // Default for specific WPs studies
+                }
+                toggleBookingScopeWorkplaces(); // Update dual listbox visibility
+            });
+        }
+
+        function toggleBookingScopeWorkplaces() {
+            const bookingScope = document.querySelector('input[name="bookingScopeRadio"]:checked').value;
+            const individualWorkplacesDualListboxContainer = document.getElementById('individualWorkplacesDualListboxContainer');
+            const studyId = document.getElementById('studySelect').value;
+            const selectedStudy = appMetadata.studies.find(s => s.id == studyId);
+
+            if (bookingScope === 'individual_workplaces' && selectedStudy) {
+                individualWorkplacesDualListboxContainer.classList.remove('hidden');
+                populateBookingWorkplacesDualListbox(selectedStudy);
+            } else {
+                individualWorkplacesDualListboxContainer.classList.add('hidden');
+                individualWorkplacesDualListboxContainer.innerHTML = ''; // Clear dual listbox content
+            }
+        }
+
+        function populateBookingWorkplacesDualListbox(study) {
+            const container = document.getElementById('individualWorkplacesDualListboxContainer');
+            container.innerHTML = `
+                <label class="form-label small">Select Workplaces</label>
+                <div class="dual-listbox d-flex justify-content-between">
+                    <div class="list-container w-45">
+                        <input type="text" class="form-control form-control-sm mb-2" id="bookingWorkplacesFilter" onkeyup="filterDualList('bookingWorkplacesFilter', 'bookingAvailableWorkplaces')" placeholder="Filter available...">
+                        <select multiple class="form-select" id="bookingAvailableWorkplaces" size="8"></select>
+                    </div>
+                    <div class="controls d-flex flex-column justify-content-center align-items-center px-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-2" onclick="moveDualListItems('bookingAvailableWorkplaces', 'bookingAssignedWorkplaces')">&gt;</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveDualListItems('bookingAssignedWorkplaces', 'bookingAvailableWorkplaces')">&lt;</button>
+                    </div>
+                    <div class="list-container w-45">
+                        <p class="text-muted small mb-2 text-center">Selected for Booking</p>
+                        <select multiple class="form-select" id="bookingAssignedWorkplaces" size="8"></select>
+                    </div>
+                </div>
+            `;
+
+            const availableListbox = document.getElementById('bookingAvailableWorkplaces');
+            const assignedListbox = document.getElementById('bookingAssignedWorkplaces');
+            availableListbox.innerHTML = '';
+            assignedListbox.innerHTML = '';
+
+            let workplacesToDisplay = [];
+            if (study.books_entire_lab) { // If study books entire lab, show all WPs in that lab
+                workplacesToDisplay = appMetadata.workplaces.filter(wp => wp.lab_id == study.primary_lab_id);
+            } else { // If study books specific WPs, show only those
+                workplacesToDisplay = appMetadata.workplaces.filter(wp => study.workplace_ids.includes(wp.id));
+            }
+            workplacesToDisplay.forEach(wp => availableListbox.add(new Option(wp.name, wp.id)));
+        }
+        
+        // NEW LAB & WORKPLACE LOGIC
+        async function addLab() {
+            const n = document.getElementById('newLabName').value;
+            if(!n) return showInfoModal('Input Required', 'Please enter a Lab name.');
+            await fetch('/api/labs', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:n}) });
+            document.getElementById('newLabName').value = '';
+            fetchLabs(); // Refresh the labs table view
+            fetchMetadata(); // Refresh dropdowns everywhere else
+            showInfoModal('Success', 'Lab created successfully!');
+        }
+
+        function populateBookingWorkplacesDualListbox(study) {
+            const container = document.getElementById('individualWorkplacesDualListboxContainer');
+            container.innerHTML = `
+                <label class="form-label small">Select Workplaces</label>
+                <div class="dual-listbox d-flex justify-content-between">
+                    <div class="list-container w-45">
+                        <input type="text" class="form-control form-control-sm mb-2" id="bookingWorkplacesFilter" onkeyup="filterDualList('bookingWorkplacesFilter', 'bookingAvailableWorkplaces')" placeholder="Filter available...">
+                        <select multiple class="form-select" id="bookingAvailableWorkplaces" size="8"></select>
+                    </div>
+                    <div class="controls d-flex flex-column justify-content-center align-items-center px-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary mb-2" onclick="moveDualListItems('bookingAvailableWorkplaces', 'bookingAssignedWorkplaces')">&gt;</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="moveDualListItems('bookingAssignedWorkplaces', 'bookingAvailableWorkplaces')">&lt;</button>
+                    </div>
+                    <div class="list-container w-45">
+                        <p class="text-muted small mb-2 text-center">Selected for Booking</p>
+                        <select multiple class="form-select" id="bookingAssignedWorkplaces" size="8"></select>
+                    </div>
+                </div>
+            `;
+
+            const availableListbox = document.getElementById('bookingAvailableWorkplaces');
+            const assignedListbox = document.getElementById('bookingAssignedWorkplaces');
+            availableListbox.innerHTML = '';
+            assignedListbox.innerHTML = '';
+
+            let workplacesToDisplay = [];
+            if (study.books_entire_lab) { // If study books entire lab, show all WPs in that lab
+                workplacesToDisplay = appMetadata.workplaces.filter(wp => wp.lab_id == study.primary_lab_id);
+            } else { // If study books specific WPs, show only those
+                workplacesToDisplay = appMetadata.workplaces.filter(wp => study.workplace_ids.includes(wp.id));
+            }
+            workplacesToDisplay.forEach(wp => availableListbox.add(new Option(wp.name, wp.id)));
+        }
+        
+        async function fetchLabs() {
+            const data = await (await fetch('/api/admin/labs')).json();
+            const tbody = document.getElementById('labsTable'); tbody.innerHTML = '';
+            data.forEach(l => {
+                let btns = '';
+                if (['admin', 'professor', 'supervisor'].includes(currentRole)) {
+                    btns += l.is_paused ? `<button class="btn btn-success btn-sm" onclick="unpauseResource('lab', ${l.id})">Unpause</button>` : `<button class="btn btn-warning btn-sm" onclick="openPauseModal('lab', ${l.id}, '${l.name}')">Pause</button>`;
+                }
+                const statusText = l.is_paused ? `PAUSED (until ${l.pause_end_date || 'further notice'})` : 'Active';
+                const statusClass = l.is_paused ? 'bg-danger' : 'bg-success';
+                tbody.innerHTML += `<tr><td><b>${l.name}</b></td><td><span class="badge ${statusClass}">${statusText}</span></td><td>${btns}</td></tr>`;
+            });
+        }
+        async function fetchWorkplaces() {
+            fetchLabs(); // Also fetch labs when this tab is opened
+            const data = await (await fetch('/api/admin/workplaces')).json();
+            const tbody = document.getElementById('workplacesTable'); tbody.innerHTML = '';
+            data.forEach(w => {
+                let btns = '';
+                if (['admin', 'professor', 'supervisor'].includes(currentRole)) {
+                    btns += w.is_paused ? `<button class="btn btn-success btn-sm m-1" onclick="unpauseResource('workplace', ${w.id})">Unpause</button>` : `<button class="btn btn-warning btn-sm m-1" onclick="openPauseModal('workplace', ${w.id}, '${w.name}')">Pause</button>`;
+                }
+                if (['admin', 'professor'].includes(currentRole)) {
+                    btns += `<button class="btn btn-outline-danger btn-sm m-1" onclick="deleteWorkplace(${w.id})">Del</button>`;
+                }
+                tbody.innerHTML += `<tr><td><b>${w.name}</b></td><td><small>${w.lab_name}</small></td><td>${w.is_paused ? '<span class="badge bg-danger">PAUSED</span>' : '<span class="badge bg-success">Active</span>'}</td><td>${btns}</td></tr>`;
+            });
+        }
+
+        async function addWorkplace() { 
+            const n = document.getElementById('newWorkplaceName').value; 
+            const l = document.getElementById('newWorkplaceLab').value;
+            if(!n || !l) return showInfoModal('Input Required', 'Please provide a name and select a parent lab.'); 
+            await fetch('/api/workplaces', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:n, lab_id: l}) }); 
+            document.getElementById('newWorkplaceName').value=''; 
+            fetchWorkplaces(); fetchMetadata();
+        }
+        async function deleteWorkplace(id) { showInfoModal('Confirm Deletion', 'Are you sure you want to delete this workplace?', async () => { await fetch(`/api/workplaces/${id}`, { method: 'DELETE' }); fetchWorkplaces(); fetchMetadata(); }); }
+
+        // RESTORED: Custom Field UI Logic
+        function addCustomFieldUI() {
+            const container = document.getElementById('customAttributesContainer');
+            const row = document.createElement('div');
+            row.className = 'custom-attr-row d-flex gap-2 mb-2';
+            row.innerHTML = `<input type="text" class="form-control form-control-sm attr-key" placeholder="Field Name (e.g. OS)"><input type="text" class="form-control form-control-sm attr-val" placeholder="Value (e.g. Windows 10)"><button type="button" class="btn btn-outline-danger btn-sm" onclick="this.parentElement.remove()">X</button>`;
+            container.appendChild(row);
+        }
+        
+        async function addEquipmentType() {
+            const name = document.getElementById('newTypeName').value;
+            if(!name) return;
+            await fetch('/api/admin/equipment_types', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name}) });
+            showInfoModal('Success', 'New equipment category added!'); document.getElementById('newTypeName').value = ''; fetchMetadata();
+        }
+
+        // RESTORED: Data Collector logic inside addEquipment
+        async function addEquipment() {
+            const type_id = document.getElementById('newEqType').value;
+            const name = document.getElementById('newEqName').value;
+            const serial_no = document.getElementById('newEqSerial').value;
+            if(!type_id || !name) return showInfoModal('Input Required', 'Please select a category and provide a name for the new device.');
+            
+            // Loop through generated rows and package into JSON object
+            let customAttributes = {};
+            document.querySelectorAll('.custom-attr-row').forEach(row => {
+                let key = row.querySelector('.attr-key').value.trim();
+                let val = row.querySelector('.attr-val').value.trim();
+                if(key && val) customAttributes[key] = val;
+            });
+            
+            await fetch('/api/admin/equipment', { 
+                method: 'POST', 
+                headers:{'Content-Type':'application/json'}, 
+                body: JSON.stringify({type_id, name, serial_no, custom_attributes: customAttributes}) 
+            });
+            
+            showInfoModal('Success', 'New device has been added to the inventory.'); 
+            document.getElementById('newEqName').value = ''; 
+            document.getElementById('newEqSerial').value = '';
+            document.getElementById('customAttributesContainer').innerHTML = ''; // Reset custom fields
+            fetchAdminEquipment();
+        }
+
+        async function fetchAdminEquipment() { const typeId = document.getElementById('adminInvType').value; if(!typeId) return; const items = await (await fetch(`/api/items/${typeId}`)).json(); const tbody = document.getElementById('adminEqTable'); tbody.innerHTML = ''; items.forEach(i => { let btns = i.is_paused ? `<button class="btn btn-success btn-sm m-1" onclick="unpauseResource('equipment', ${i.id})">Unpause</button>` : `<button class="btn btn-warning btn-sm m-1" onclick="openPauseModal('equipment', ${i.id}, '${i.name}')">Pause</button>`; if(['admin', 'professor'].includes(currentRole)) { btns += `<button class="btn btn-outline-dark btn-sm m-1" onclick="openEditEquipmentModal(${i.id}, '${i.name}', '${i.serial_no || ''}')">Edit</button>`; btns += `<button class="btn btn-outline-danger btn-sm m-1" onclick="deleteEq(${i.id})">Del</button>`; } tbody.innerHTML += `<tr><td>${i.id}</td><td><b>${i.name}</b></td><td>${i.serial_no || '-'}</td><td>${i.is_paused ? '<span class="badge bg-danger">PAUSED</span>' : '<span class="badge bg-success">Active</span>'}</td><td>${btns}</td></tr>`; }); }
+        async function deleteEq(id) { showInfoModal('Confirm Deletion', 'Are you sure you want to delete this equipment?', async () => { await fetch(`/api/admin/equipment/${id}`, { method: 'DELETE' }); fetchAdminEquipment(); }); }
+
+        function openEditEquipmentModal(id, currentName, currentSerial) {
+            document.getElementById('editEqId').value = id;
+            document.getElementById('editEqName').value = currentName;
+            document.getElementById('editEqSerial').value = currentSerial;
+            const modal = new bootstrap.Modal(document.getElementById('editEquipmentModal'));
+            modal.show();
+        }
+
+        async function confirmEditEquipment() {
+            const id = document.getElementById('editEqId').value;
+            const newName = document.getElementById('editEqName').value;
+            const newSerial = document.getElementById('editEqSerial').value;
+            const res = await fetch(`/api/admin/equipment/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ name: newName, serial_no: newSerial })
+            });
+            bootstrap.Modal.getInstance(document.getElementById('editEquipmentModal')).hide();
+            if(res.ok) { fetchAdminEquipment(); showInfoModal('Success', 'Equipment details updated.'); } 
+            else { showInfoModal('Error', (await res.json()).error); }
+        }
+        function openPauseModal(type, id, name) {
+            document.getElementById('pauseResourceType').value = type;
+            document.getElementById('pauseResourceId').value = id;
+            document.getElementById('pauseResourceName').textContent = name;
+            flatpickr("#pauseEndDate", {}); // Initialize/reset date picker
+            document.getElementById('pauseEndDate').value = '';
+            const modal = new bootstrap.Modal(document.getElementById('pauseResourceModal'));
+            modal.show();
+        }
+
+        async function confirmPauseResource() {
+            const type = document.getElementById('pauseResourceType').value;
+            const id = document.getElementById('pauseResourceId').value;
+            const endDate = document.getElementById('pauseEndDate').value;
+            
+            let url = '';
+            if (type === 'equipment') url = `/api/admin/equipment/${id}`;
+            else if (type === 'lab') url = `/api/admin/labs/${id}`;
+            else if (type === 'workplace') url = `/api/workplaces/${id}`;
+
+            await fetch(url, { method: 'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({is_paused: true, pause_end_date: endDate}) });
+            bootstrap.Modal.getInstance(document.getElementById('pauseResourceModal')).hide();
+            if (type === 'equipment') fetchAdminEquipment(); else fetchWorkplaces();
+        }
+
+        async function unpauseResource(type, id) {
+            let url = '';
+            if (type === 'equipment') url = `/api/admin/equipment/${id}`;
+            else if (type === 'lab') url = `/api/admin/labs/${id}`;
+            else if (type === 'workplace') url = `/api/workplaces/${id}`;
+            await fetch(url, { method: 'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({is_paused: false}) });
+            if (type === 'equipment') fetchAdminEquipment(); else fetchWorkplaces();
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const resetToken = '{{ reset_token | default(None) | safe }}';
+            if (resetToken && resetToken !== 'None') {
+                document.getElementById('authContainer').classList.add('hidden');
+                document.getElementById('resetContainer').classList.remove('hidden');
+                document.getElementById('resetToken').value = resetToken;
+            }
+
+            flatpickr(".flatpickr-date", { altInput: true, altFormat: "d/m/Y", dateFormat: "Y-m-d", disableMobile: true });
+            flatpickr(".flatpickr-time", { enableTime: true, noCalendar: true, dateFormat: "H:i", time_24hr: true, altInput: true, altFormat: "H:i", altInputClass: "form-control bg-white", disableMobile: true });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+Flask
+Flask-SQLAlchemy
+Werkzeug
+itsdangerous
+icalendar
+pandas
+openpyxl
